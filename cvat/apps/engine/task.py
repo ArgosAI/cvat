@@ -508,7 +508,7 @@ def _create_thread(tid, data, isImport=False):
         for chunk_idx, chunk_data in generator:
             chunk_data = list(chunk_data)
             original_chunk_path = db_data.get_original_chunk_path(chunk_idx)
-            original_chunk_writer.save_as_chunk(chunk_data, original_chunk_path)
+            # original_chunk_writer.save_as_chunk(chunk_data, original_chunk_path)
 
             compressed_chunk_path = db_data.get_compressed_chunk_path(chunk_idx)
             img_sizes = compressed_chunk_writer.save_as_chunk(chunk_data, compressed_chunk_path)
