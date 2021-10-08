@@ -1,0 +1,128 @@
+version: '3.3'
+services:
+  cvat_redis:
+    container_name: cvat_redis
+    image: redis:4.0-alpine
+    restart: always
+    networks:
+      - cvat
+
+  cvat:
+    container_name: cvat
+    build:
+      context: .
+    restart: always
+    environment:
+      DJANGO_MODWSGI_EXTRA_ARGS: ""
+      ALLOWED_HOSTS: '*'
+      CVAT_REDIS_HOST: "cvat_redis"
+      CVAT_POSTGRES_HOST:
+      CVAT_POSTGRES_DBNAME:
+      CVAT_POSTGRES_USER:
+      CVAT_POSTGRES_PASSWORD:
+      CVAT_SHARE_URL: "Mounted from AWS S3"
+      DJANGO_LOG_SERVER_HOST: logstash
+      DJANGO_LOG_SERVER_PORT: 8080
+      DJANGO_LOG_VIEWER_HOST: ${CVAT_KIBANA_ENDPOINT}
+      DJANGO_LOG_VIEWER_PORT: 443
+      CVAT_ANALYTICS: 1
+      ADAPTIVE_AUTO_ANNOTATION: 'false'
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.cvat.loadbalancer.server.port=8080
+      - traefik.http.routers.cvat.rule=Host(`${CVAT_HOST:-localhost}`) &&
+          PathPrefix(`/api/`, `/git/`, `/opencv/`, `/analytics/`, `/static/`, `/admin`, `/documentation/`, `/django-rq`)
+      - traefik.http.routers.cvat.entrypoints=websecure
+      - traefik.http.routers.cvat.tls.certresolver=lets-encrypt
+    volumes:
+      - cvat_data:/home/django/data
+      - cvat_keys:/home/django/keys
+      - cvat_logs:/home/django/logs
+      - cvat_models:/home/django/models
+      - cvat_share:/home/django/share:ro
+    depends_on:
+      - cvat_redis
+    networks:
+      - cvat
+
+  cvat_ui:
+    container_name: cvat_ui
+    image: openvino/cvat_ui:v1.4.0
+    restart: always
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.cvat-ui.loadbalancer.server.port=80
+      - traefik.http.routers.cvat-ui.rule=Host(`${CVAT_HOST:-localhost}`)
+      - traefik.http.routers.cvat-ui.entrypoints=websecure
+      - traefik.http.routers.cvat-ui.tls.certresolver=lets-encrypta
+    depends_on:
+      - cvat
+    networks:
+      - cvat
+
+  traefik:
+    image: traefik:v2.4
+    container_name: traefik
+    restart: always
+    command:
+      - "--providers.docker.exposedByDefault=false"
+      - "--providers.docker.network=cvat"
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entryPoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entryPoints.websecure.address=:443"
+      - "--certificatesResolvers.lets-encrypt.acme.email=${ACME_EMAIL:?Please set the ACME_EMAIL env variable}"
+      - "--certificatesResolvers.lets-encrypt.acme.tlsChallenge=true"
+      - "--certificatesResolvers.lets-encrypt.acme.storage=/letsencrypt/acme.json"
+    # Uncomment to get Traefik dashboard
+      # - "--entryPoints.dashboard.address=:8090"
+      # - "--api.dashboard=true"
+     labels:
+       - traefik.enable=true
+       - traefik.http.routers.dashboard.entrypoints=dashboard
+       - traefik.http.routers.dashboard.service=api@internal
+       - traefik.http.routers.dashboard.rule=Host(`${CVAT_HOST:-localhost}`)
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - cvat_letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - cvat
+
+  cvat_logstash:
+    container_name: cvat_logstash
+    image: cvat_logstash
+    restart: always
+    build:
+      context: ./components/analytics/logstash
+      args:
+        ELK_VERSION: 6.4.0
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+    environment:
+      LOGSTASH_OUTPUT_HOST:
+      CVAT_KIBANA_USER:
+      CVAT_KIBANA_PASSWORD:
+    networks:
+      - cvat
+
+volumes:
+  cvat_data:
+    driver_opts:
+      type: none
+      device: /mnt/cvat_local
+      o: bind
+  cvat_keys:
+  cvat_logs:
+  cvat_models:
+  cvat_letsencrypt:
+  cvat_share:
+    driver_opts:
+      type: none
+      device: /mnt/cvat_s3/share
+      o: bind
+
+networks:
+  cvat:
