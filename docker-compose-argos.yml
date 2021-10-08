@@ -77,11 +77,11 @@ services:
     # Uncomment to get Traefik dashboard
       # - "--entryPoints.dashboard.address=:8090"
       # - "--api.dashboard=true"
-     labels:
-       - traefik.enable=true
-       - traefik.http.routers.dashboard.entrypoints=dashboard
-       - traefik.http.routers.dashboard.service=api@internal
-       - traefik.http.routers.dashboard.rule=Host(`${CVAT_HOST:-localhost}`)
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dashboard.entrypoints=dashboard
+      - traefik.http.routers.dashboard.service=api@internal
+      - traefik.http.routers.dashboard.rule=Host(`${CVAT_HOST:-localhost}`)
     ports:
       - 80:80
       - 443:443
