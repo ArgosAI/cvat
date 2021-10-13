@@ -41,7 +41,7 @@ services:
       - cvat_share:/home/django/share:ro
     depends_on:
       - cvat_redis
-      - logstash
+      - cvat_logstash
     networks:
       - cvat
 
