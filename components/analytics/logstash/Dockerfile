@@ -5,4 +5,4 @@ RUN logstash-plugin install logstash-input-http logstash-filter-aggregate \
 
 COPY logstash.yml  /usr/share/logstash/config/
 COPY logstash.conf /usr/share/logstash/pipeline/
-EXPOSE 8081
+EXPOSE 8080
