@@ -98,7 +98,7 @@ services:
     build:
       context: ./components/analytics/logstash
       args:
-        ELK_VERSION: 6.4.0
+        ELK_VERSION: 7.15.1
         http_proxy: ${http_proxy}
         https_proxy: ${https_proxy}
     environment:
