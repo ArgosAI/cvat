@@ -1,0 +1,105 @@
+version: '3.3'
+services:
+  cvat:
+    container_name: cvat
+    build:
+      context: .
+    restart: always
+    environment:
+      DJANGO_MODWSGI_EXTRA_ARGS: ""
+      ALLOWED_HOSTS: '*'
+      CVAT_REDIS_HOST: "cvat_redis"
+      CVAT_POSTGRES_HOST: "cvat_db"
+      CVAT_POSTGRES_DBNAME: cvat_postgres
+      CVAT_POSTGRES_USER: cvat_postgres
+      CVAT_POSTGRES_PASSWORD: cvat_postgres
+      CVAT_SHARE_URL: "Mounted from AWS S3"
+      CVAT_ANALYTICS: 1
+      ADAPTIVE_AUTO_ANNOTATION: 'false'
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.cvat.loadbalancer.server.port=8080
+      - traefik.http.routers.cvat.rule=Host(`${CVAT_HOST:-localhost}`) &&
+          PathPrefix(`/api/`, `/git/`, `/opencv/`, `/analytics/`, `/static/`, `/admin`, `/documentation/`, `/django-rq`)
+    volumes:
+      - cvat_data:/home/django/data
+      - cvat_keys:/home/django/keys
+      - cvat_logs:/home/django/logs
+      - cvat_models:/home/django/models
+      - cvat_share:/home/django/share:ro
+    depends_on:
+      - cvat_redis
+      - cvat_db
+    networks:
+      - cvat
+
+  cvat_redis:
+    container_name: cvat_redis
+    image: redis:4.0-alpine
+    restart: always
+    networks:
+      - cvat
+
+  cvat_ui:
+    container_name: cvat_ui
+    image: openvino/cvat_ui:v1.4.0
+    restart: always
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.cvat-ui.loadbalancer.server.port=80
+      - traefik.http.routers.cvat-ui.rule=Host(`${CVAT_HOST:-localhost}`)
+    depends_on:
+      - cvat
+    networks:
+      - cvat
+
+  traefik:
+    image: traefik:v2.4
+    container_name: traefik
+    restart: always
+    command:
+      - "--providers.docker.exposedByDefault=false"
+      - "--providers.docker.network=cvat"
+      - "--entryPoints.web.address=:80"
+    labels:
+      - traefik.enable=true
+    ports:
+      - 80:80
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - cvat
+
+  cvat_db:
+    container_name: cvat_db
+    image: postgis/postgis:11-3.1-alpine
+    environment:
+      - POSTGRES_USER=cvat_postgres
+      - POSTGRES_DB=cvat_postgres
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRESS_PASSWORD=cvat_postgres
+    ports:
+      - target: 5432
+        published: 5432
+        protocol: tcp
+    networks:
+      - cvat
+
+volumes:
+  cvat_data:
+    driver_opts:
+      type: none
+      device: /mnt/cvat_local
+      o: bind
+  cvat_keys:
+  cvat_logs:
+  cvat_models:
+  cvat_letsencrypt:
+  cvat_share:
+    driver_opts:
+      type: none
+      device: /mnt/cvat_s3/share
+      o: bind
+
+networks:
+  cvat:
