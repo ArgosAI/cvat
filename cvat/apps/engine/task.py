@@ -1062,13 +1062,19 @@ def _create_thread(
                 images=chunk_data,
                 chunk_path=db_data.get_original_chunk_path(chunk_idx)
             )
-            fs_compressed = executor.submit(
-                compressed_chunk_writer.save_as_chunk,
-                images=chunk_data,
-                chunk_path=db_data.get_compressed_chunk_path(chunk_idx),
-            )
+            if settings.CVAT_CREATE_COMPRESSED_CHUNKS:
+                fs_compressed = executor.submit(
+                    compressed_chunk_writer.save_as_chunk,
+                    images=chunk_data,
+                    chunk_path=db_data.get_compressed_chunk_path(chunk_idx),
+                )
+                image_sizes = fs_compressed.result()
+            else:
+                # create hard link to original chunk
+                os.link(db_data.get_original_chunk_path(chunk_idx), db_data.get_compressed_chunk_path(chunk_idx))
+                image_sizes = [t[0].size for t in chunk_data]
+
             fs_original.result()
-            image_sizes = fs_compressed.result()
 
             # (path, frame, size)
             return list((i[0][1], i[0][2], i[1]) for i in zip(chunk_data, image_sizes))

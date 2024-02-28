@@ -709,5 +709,8 @@ ONE_RUNNING_JOB_IN_QUEUE_PER_USER = to_bool(os.getenv('ONE_RUNNING_JOB_IN_QUEUE_
 # How many chunks can be prepared simultaneously during task creation in case the cache is not used
 CVAT_CONCURRENT_CHUNK_PROCESSING = int(os.getenv('CVAT_CONCURRENT_CHUNK_PROCESSING', 1))
 
+# Whether to create compressed chunks or just symlinks to the original chunks
+CVAT_CREATE_COMPRESSED_CHUNKS = to_bool(os.getenv('CVAT_CREATE_COMPRESSED_CHUNKS', True))
+
 from cvat.rq_patching import update_started_job_registry_cleanup
 update_started_job_registry_cleanup()
