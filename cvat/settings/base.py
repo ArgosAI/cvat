@@ -22,6 +22,7 @@ import tempfile
 from datetime import timedelta
 from enum import Enum
 import urllib
+import uuid
 
 from attr.converters import to_bool
 from corsheaders.defaults import default_headers
@@ -46,31 +47,61 @@ def generate_secret_key():
     Creates secret_key.py in such a way that multiple processes calling
     this will all end up with the same key (assuming that they share the
     same "keys" directory).
+    Applies lock-free whack-a-mole algorithm to create consensus.
     """
-
     from django.utils.crypto import get_random_string
     keys_dir = os.path.join(BASE_DIR, 'keys')
     if not os.path.isdir(keys_dir):
         os.mkdir(keys_dir)
 
     secret_key_fname = 'secret_key.py' # nosec
+    final_fname = os.path.join(keys_dir, secret_key_fname)
 
+    # Check whether the file already exists. Stop if it does.
+    if os.path.exists(final_fname):
+        return
+
+    # Generate a unique ID
+    unique_id = uuid.uuid4()
+
+    # Create a temporary file with the secret key and rename it (atomically)
     with tempfile.NamedTemporaryFile(
-        mode='wt', dir=keys_dir, prefix=secret_key_fname + ".",
+        mode='wt', dir=keys_dir, prefix=secret_key_fname + "."
     ) as f:
         chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)'
         f.write("SECRET_KEY = '{}'\n".format(get_random_string(50, chars)))
-
-        # Make sure the file contents are written before we link to it
-        # from the final location.
         f.flush()
+        my_fname = os.path.join(keys_dir, secret_key_fname + "-" + str(unique_id))
+        os.rename(f.name, my_fname)
 
+    # look for any other files with the same prefix
+    for fname in os.listdir(keys_dir):
+        if fname.startswith(secret_key_fname + "-"):
+            other_fname = os.path.join(keys_dir, fname)
+            # if their UUID is greater, try to delete them
+            if other_fname > my_fname:
+                try:
+                    os.unlink(other_fname)
+                except FileNotFoundError:
+                    pass
+            # if their UUID is less, try to delete our file
+            else:
+                try:
+                    os.unlink(my_fname)
+                    my_fname = other_fname
+                except FileNotFoundError:
+                    pass
+
+    # Check again to see if the destination file already exists.
+    # If so, attempt to delete your temporary file.
+    if os.path.exists(final_fname):
         try:
-            os.link(f.name, os.path.join(keys_dir, secret_key_fname))
-        except FileExistsError:
-            # Somebody else created the secret key first.
-            # Discard ours and use theirs.
+            os.unlink(my_fname)
+        except FileNotFoundError:
             pass
+    # Otherwise, attempt to rename the temporary file to the destination file.
+    else:
+        os.rename(my_fname, final_fname)
 
 try:
     sys.path.append(BASE_DIR)

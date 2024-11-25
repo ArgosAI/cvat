@@ -13,6 +13,8 @@ services:
   cvat_server:
     build:
       context: .
+      platforms:
+        - "linux/amd64"
       args:
         http_proxy:
         https_proxy:
@@ -93,6 +95,8 @@ services:
   cvat_ui:
     build:
       context: .
+      platforms:
+        - "linux/amd64"
       args:
         http_proxy:
         https_proxy:
